@@ -1,0 +1,24 @@
+# Handle line endings automatically for files detected as text
+# and leave all binary files untouched.
+* text=auto
+
+# Explicitly declare files that are always binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.keystore binary
+
+# Explicitly declare text files to use LF (newline) line endings on checkout
+*.kt text eol=lf
+*.kts text eol=lf
+*.xml text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
