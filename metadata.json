@@ -1,0 +1,6 @@
+{
+  "name": "P2P Remote Camera",
+  "description": "Stream local live camera feeds and full double-sided talkback audio between spare and main devices over hotspot connections with direct on-device recording.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

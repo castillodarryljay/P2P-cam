@@ -1,0 +1,8 @@
+{
+  "files.exclude": {
+    "**/build": false,
+    "**/.build-outputs": false,
+    "**/app/build": false
+  },
+  "explorer.excludeGitIgnore": false
+}
