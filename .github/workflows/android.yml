@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 jobs:
   build:
@@ -20,14 +20,19 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        validate-wrappers: false
+
+    - name: Grant Execute Permission for Gradlew
+      run: chmod +x ./gradlew
+
     - name: Create .env file
       run: cp .env.example .env
 
-    # This bypasses the broken local jarfile and uses GitHub's internal Gradle runner
-    - name: Setup Gradle and Build
-      uses: gradle/actions/setup-gradle@v4
-      with:
-        arguments: assembleDebug
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
