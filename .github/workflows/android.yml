@@ -24,6 +24,9 @@ jobs:
     - name: Grant Execute Permission for Gradlew
       run: chmod +x ./gradlew
 
+    - name: Create .env file
+      run: cp .env.example .env
+
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 

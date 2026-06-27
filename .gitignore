@@ -15,5 +15,8 @@
 local.properties
 .env
 debug.keystore
+*.apk
+*.zip
+
 
 
