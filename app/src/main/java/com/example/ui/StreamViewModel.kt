@@ -66,6 +66,10 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     private val _streamQuality = MutableStateFlow(60)
     val streamQuality = _streamQuality.asStateFlow()
 
+    // Resolution: "1080p", "720p", "480p", "360p"
+    private val _streamResolution = MutableStateFlow("720p")
+    val streamResolution = _streamResolution.asStateFlow()
+
     // Camera Selector options
     private val _availableCameras = MutableStateFlow<List<CameraOption>>(emptyList())
     val availableCameras = _availableCameras.asStateFlow()
@@ -282,6 +286,28 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         _selectedCamera.value = camera
     }
 
+    fun setStreamResolution(resolution: String) {
+        _streamResolution.value = resolution
+    }
+
+    fun toggleWideAngle() {
+        val cameras = _availableCameras.value
+        val current = _selectedCamera.value ?: return
+        if (current.isUltraWide) {
+            // Switch back to standard back lens
+            val standard = cameras.find { it.isBack && !it.isUltraWide }
+            if (standard != null) {
+                _selectedCamera.value = standard
+            }
+        } else {
+            // Switch to ultra-wide lens
+            val wide = cameras.find { it.isUltraWide }
+            if (wide != null) {
+                _selectedCamera.value = wide
+            }
+        }
+    }
+
     fun startForegroundStreaming() {
         val context = getApplication<Application>()
         val camera = _selectedCamera.value
@@ -289,12 +315,14 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         val cameraId = camera?.cameraId
         val physicalCameraId = camera?.physicalCameraId
         val quality = _streamQuality.value
+        val resolution = _streamResolution.value
         
         val intent = Intent(context, TransmitterService::class.java).apply {
             putExtra(TransmitterService.EXTRA_CAMERA_HASH, cameraHash)
             putExtra(TransmitterService.EXTRA_CAMERA_ID, cameraId)
             putExtra(TransmitterService.EXTRA_PHYSICAL_CAMERA_ID, physicalCameraId)
             putExtra(TransmitterService.EXTRA_QUALITY, quality)
+            putExtra(TransmitterService.EXTRA_RESOLUTION, resolution)
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -57,6 +57,8 @@ import com.example.p2p.P2PTransmitter
 import com.example.p2p.TransmitterService
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.isGranted
 import java.io.File
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -64,40 +66,48 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun StreamAppUi(viewModel: StreamViewModel) {
-    val permissionState = rememberMultiplePermissionsState(
-        permissions = listOf(
-            android.Manifest.permission.CAMERA,
-            android.Manifest.permission.RECORD_AUDIO
-        )
-    )
-
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFF0C0F14) // Deep Space Dark Slate
     ) {
-        if (permissionState.allPermissionsGranted) {
-            MainAppLayout(viewModel)
-        } else {
-            PermissionOnboarding(
-                onRequestPermissions = { permissionState.launchMultiplePermissionRequest() }
-            )
-        }
+        MainAppLayout(viewModel)
     }
 }
 
 @Composable
-fun PermissionOnboarding(onRequestPermissions: () -> Unit) {
+fun PermissionOnboarding(
+    onRequestPermissions: () -> Unit,
+    onBack: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            IconButton(
+                onClick = onBack,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF161B22))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back to Home",
+                    tint = Color.White
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -178,6 +188,7 @@ fun HomeScreen(viewModel: StreamViewModel) {
             .fillMaxSize()
             .padding(16.dp)
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
     ) {
         // App Header
         Spacer(modifier = Modifier.height(16.dp))
@@ -215,7 +226,7 @@ fun HomeScreen(viewModel: StreamViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.weight(0.8f))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Large Option Cards
         Text(
@@ -258,7 +269,7 @@ fun HomeScreen(viewModel: StreamViewModel) {
             onClick = { viewModel.navigateTo(StreamViewModel.Screen.Dashboard) }
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -326,14 +337,34 @@ fun DeviceModeCard(
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun TransmitterScreen(viewModel: StreamViewModel) {
+    val permissionState = rememberMultiplePermissionsState(
+        permissions = listOf(
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.RECORD_AUDIO
+        )
+    )
+
+    if (permissionState.allPermissionsGranted) {
+        TransmitterScreenContent(viewModel)
+    } else {
+        PermissionOnboarding(
+            onRequestPermissions = { permissionState.launchMultiplePermissionRequest() },
+            onBack = { viewModel.navigateTo(StreamViewModel.Screen.Home) }
+        )
+    }
+}
+
+@Composable
+fun TransmitterScreenContent(viewModel: StreamViewModel) {
     val context = LocalContext.current
     val isServiceRunning by TransmitterService.isServiceRunning.collectAsStateWithLifecycle()
     val activeCameraLabel by TransmitterService.activeCameraLabel.collectAsStateWithLifecycle()
     val availableCameras by viewModel.availableCameras.collectAsStateWithLifecycle()
     val selectedCamera by viewModel.selectedCamera.collectAsStateWithLifecycle()
-    val streamQuality by viewModel.streamQuality.collectAsStateWithLifecycle()
+    val streamResolution by viewModel.streamResolution.collectAsStateWithLifecycle()
     val localIps by viewModel.localNetworkInterfaces.collectAsStateWithLifecycle()
     val clientsCount by viewModel.transmitter.clientsConnectedCount.collectAsStateWithLifecycle()
     val connectionState by viewModel.transmitter.connectionState.collectAsStateWithLifecycle()
@@ -500,11 +531,11 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
                             Icon(Icons.Default.HighQuality, contentDescription = null, tint = Color(0xFFFF3344), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "MJPEG Format Quality: ",
+                                "Streaming Resolution: ",
                                 style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFA0AAB8))
                             )
                             Text(
-                                "$streamQuality%",
+                                streamResolution.uppercase(),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Color.White)
                             )
                         }
@@ -621,11 +652,11 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
 
-                // Layout Preview Zone
+                // Layout Preview Zone (16:9 Aspect Ratio)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
+                        .aspectRatio(16f / 9f)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.Black)
                         .border(1.dp, Color(0xFF222B36), RoundedCornerShape(20.dp)),
@@ -681,45 +712,80 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 } else {
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        availableCameras.forEach { item ->
-                            val isSelected = selectedCamera?.hash == item.hash
-                            val isWideAngle = item.isUltraWide
-                            val chipBg = if (isSelected) Color(0xFFFF3344) else Color(0xFF161B22)
-                            val chipBorder = if (isSelected) Color(0xFFFF3344) else Color(0xFF222B36)
-                            val chipContentColor = if (isSelected) Color.White else Color(0xFFA0AAB8)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            availableCameras.forEach { item ->
+                                val isSelected = selectedCamera?.hash == item.hash
+                                val isWideAngle = item.isUltraWide
+                                val chipBg = if (isSelected) Color(0xFFFF3344) else Color(0xFF161B22)
+                                val chipBorder = if (isSelected) Color(0xFFFF3344) else Color(0xFF222B36)
+                                val chipContentColor = if (isSelected) Color.White else Color(0xFFA0AAB8)
 
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { viewModel.selectCamera(item) },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, chipBorder),
-                                color = chipBg
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { viewModel.selectCamera(item) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, chipBorder),
+                                    color = chipBg
                                 ) {
+                                    Column(
+                                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isWideAngle) Icons.Default.ZoomOutMap
+                                                         else if (item.isBack) Icons.Default.CameraRear
+                                                         else Icons.Default.CameraFront,
+                                            contentDescription = null,
+                                            tint = chipContentColor,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = item.name,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                color = chipContentColor,
+                                                fontSize = 9.sp
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Wide Angle lens toggle button for quick access
+                        if (availableCameras.any { it.isUltraWide }) {
+                            val isWideSelected = selectedCamera?.isUltraWide == true
+                            Button(
+                                onClick = { viewModel.toggleWideAngle() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isWideSelected) Color(0xFF00FFCC) else Color(0xFF161B22)
+                                ),
+                                border = BorderStroke(1.dp, if (isWideSelected) Color(0xFF00FFCC) else Color(0xFF222B36)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (isWideAngle) Icons.Default.ZoomOutMap
-                                                     else if (item.isBack) Icons.Default.CameraRear
-                                                     else Icons.Default.CameraFront,
-                                        contentDescription = null,
-                                        tint = chipContentColor,
-                                        modifier = Modifier.size(24.dp)
+                                        imageVector = Icons.Default.ZoomOutMap,
+                                        contentDescription = "Wide Angle Lens",
+                                        tint = if (isWideSelected) Color.Black else Color.White
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = item.name,
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            color = chipContentColor,
-                                            fontSize = 9.sp
+                                        text = if (isWideSelected) "Wide Angle Lens (0.5x) Enabled" else "Switch to Wide Angle Lens (0.5x)",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isWideSelected) Color.Black else Color.White
                                         )
                                     )
                                 }
@@ -728,9 +794,9 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
                     }
                 }
 
-                // QUALITY SLIDER
+                // SELECT RESOLUTION (16:9)
                 Text(
-                    text = "COMPRESSION QUALITY: $streamQuality%",
+                    text = "SELECT STREAM RESOLUTION (16:9)",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF53657D),
@@ -739,28 +805,51 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
                     modifier = Modifier.padding(horizontal = 4.dp).padding(top = 4.dp)
                 )
 
-                Card(
+                val resolutions = listOf("1080p", "720p", "480p", "360p")
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-                    shape = RoundedCornerShape(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                    resolutions.forEach { res ->
+                        val isSelected = streamResolution == res
+                        val chipBg = if (isSelected) Color(0xFFFF3344) else Color(0xFF161B22)
+                        val chipBorder = if (isSelected) Color(0xFFFF3344) else Color(0xFF222B36)
+                        val chipContentColor = if (isSelected) Color.White else Color(0xFFA0AAB8)
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { viewModel.setStreamResolution(res) },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, chipBorder),
+                            color = chipBg
                         ) {
-                            Text("Fast (Low-Bandwidth)", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF53657D)))
-                            Text("Pristine (High-Quality)", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF53657D)))
+                            Column(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = res,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = chipContentColor
+                                    )
+                                )
+                                Text(
+                                    text = when (res) {
+                                        "1080p" -> "FHD (16:9)"
+                                        "720p" -> "HD (16:9)"
+                                        "480p" -> "SD (16:9)"
+                                        "360p" -> "Low (16:9)"
+                                        else -> ""
+                                    },
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = chipContentColor.copy(alpha = 0.7f),
+                                        fontSize = 8.sp
+                                    )
+                                )
+                            }
                         }
-                        Slider(
-                            value = streamQuality.toFloat(),
-                            onValueChange = { viewModel.setStreamQuality(it.toInt()) },
-                            valueRange = 25f..90f,
-                            colors = SliderDefaults.colors(
-                                activeTrackColor = Color(0xFFFF3344),
-                                thumbColor = Color(0xFFFF3344)
-                            )
-                        )
                     }
                 }
 
@@ -828,6 +917,7 @@ fun TransmitterScreen(viewModel: StreamViewModel) {
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun ReceiverScreen(viewModel: StreamViewModel) {
     val context = LocalContext.current
@@ -837,6 +927,7 @@ fun ReceiverScreen(viewModel: StreamViewModel) {
     val recordingState by viewModel.receiver.recordingState.collectAsStateWithLifecycle()
     val targetIp by viewModel.targetIp.collectAsStateWithLifecycle()
     var showQrScanner by remember { mutableStateOf(false) }
+    val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
     DisposableEffect(Unit) {
         onDispose {
@@ -848,6 +939,7 @@ fun ReceiverScreen(viewModel: StreamViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
     ) {
         // Toolbar
         Row(
@@ -873,12 +965,12 @@ fun ReceiverScreen(viewModel: StreamViewModel) {
         }
 
         if (connectionState is P2PReceiver.ConnectionState.Connected) {
-            // Screen display for active stream
+            // Screen display for active stream (16:9 Aspect Ratio)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
                     .padding(horizontal = 16.dp)
+                    .aspectRatio(16f / 9f)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.Black)
                     .border(2.dp, Color(0xFF222B36), RoundedCornerShape(20.dp)),
@@ -1134,7 +1226,13 @@ fun ReceiverScreen(viewModel: StreamViewModel) {
                     label = { Text("Camera IP Address", color = Color(0xFFA0AAB8)) },
                     placeholder = { Text("e.g. 192.168.43.1") },
                     trailingIcon = {
-                        IconButton(onClick = { showQrScanner = true }) {
+                        IconButton(onClick = {
+                            if (cameraPermissionState.status.isGranted) {
+                                showQrScanner = true
+                            } else {
+                                cameraPermissionState.launchPermissionRequest()
+                            }
+                        }) {
                             Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR Code", tint = Color(0xFFFF3344))
                         }
                     },

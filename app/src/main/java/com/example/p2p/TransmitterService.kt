@@ -71,7 +71,16 @@ class TransmitterService : Service(), LifecycleOwner {
         val cameraHash = intent?.getIntExtra(EXTRA_CAMERA_HASH, -1) ?: -1
         val cameraId = intent?.getStringExtra(EXTRA_CAMERA_ID)
         val physicalCameraId = intent?.getStringExtra(EXTRA_PHYSICAL_CAMERA_ID)
-        val quality = intent?.getIntExtra(EXTRA_QUALITY, 60) ?: 60
+        val resolution = intent?.getStringExtra(EXTRA_RESOLUTION) ?: "720p"
+
+        // Map resolution preset to JPEG compression quality dynamically if not specified
+        val mappedQuality = when (resolution) {
+            "1080p" -> 85
+            "720p" -> 70
+            "480p" -> 55
+            "360p" -> 40
+            else -> 70
+        }
 
         // Create Channel & Start Foreground immediately
         createNotificationChannel()
@@ -111,13 +120,13 @@ class TransmitterService : Service(), LifecycleOwner {
         }
 
         // Launch transmitter server and bind selected CameraX lens
-        startStreamingServerAndCamera(cameraHash, cameraId, physicalCameraId, quality)
+        startStreamingServerAndCamera(cameraHash, cameraId, physicalCameraId, mappedQuality, resolution)
 
         _isServiceRunning.value = true
         return START_STICKY
     }
 
-    private fun startStreamingServerAndCamera(cameraHash: Int, cameraId: String?, physicalCameraId: String?, quality: Int) {
+    private fun startStreamingServerAndCamera(cameraHash: Int, cameraId: String?, physicalCameraId: String?, quality: Int, resolution: String) {
         serviceScope.launch {
             // Start transmitter socket server
             transmitterInstance.startServer()
@@ -160,10 +169,20 @@ class TransmitterService : Service(), LifecycleOwner {
                     _activeCameraLabel.value = label
                 }
 
+                // Determine 16:9 aspect ratio resolution target
+                val targetSize = when (resolution) {
+                    "1080p" -> android.util.Size(1920, 1080)
+                    "720p" -> android.util.Size(1280, 720)
+                    "480p" -> android.util.Size(854, 480)
+                    "360p" -> android.util.Size(640, 360)
+                    else -> android.util.Size(1280, 720)
+                }
+
                 // Configure ImageAnalysis for streaming frames with physical lens interop if available
                 val imageAnalysisBuilder = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .setTargetResolution(targetSize)
 
                 if (physicalCameraId != null) {
                     androidx.camera.camera2.interop.Camera2Interop.Extender(imageAnalysisBuilder)
@@ -277,6 +296,7 @@ class TransmitterService : Service(), LifecycleOwner {
         const val EXTRA_CAMERA_ID = "extra_camera_id"
         const val EXTRA_PHYSICAL_CAMERA_ID = "extra_physical_camera_id"
         const val EXTRA_QUALITY = "extra_quality"
+        const val EXTRA_RESOLUTION = "extra_resolution"
 
         // Static singleton reference for easier state observation from the compose UI
         val transmitterInstance = P2PTransmitter()
