@@ -35,6 +35,9 @@ jobs:
     - name: Create .env file
       run: cp .env.example .env
 
+    - name: Decode Keystore
+      run: base64 -d debug.keystore.base64 > debug.keystore
+
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
